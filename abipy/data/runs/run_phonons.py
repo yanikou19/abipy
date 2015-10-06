@@ -53,34 +53,7 @@ def scf_ph_inputs(paral_kgb=0):
     gs_inp.set_vars(global_vars)
     gs_inp.set_vars(tolvrs=1.0e-18)
 
-    # Get the qpoints in the IBZ. Note that here we use a q-mesh with ngkpt=(4,4,4) and shiftk=(0,0,0)
-    # i.e. the same parameters used for the k-mesh in gs_inp.
-    qpoints = gs_inp.abiget_ibz(ngkpt=(4,4,4), shiftk=(0,0,0), kptopt=1).points
-    print("get_ibz", qpoints)
- 
-    ph_inputs = abilab.MultiDataset(structure, pseudos=pseudos, ndtset=len(qpoints))
-
-    for ph_inp, qpt in zip(ph_inputs, qpoints):
-        # Response-function calculation for phonons.
-        ph_inp.set_vars(global_vars)
-        ph_inp.set_vars(
-            rfphon=1,        # Will consider phonon-type perturbation
-            nqpt=1,          # One wavevector is to be considered
-            qpt=qpt,         # This wavevector is q=0 (Gamma)
-            tolwfr=1.0e-20,
-            kptopt=3,
-            #nstep=4,         # This is to trigger the restart.
-        )
-
-            #rfatpol   1 1   # Only the first atom is displaced
-            #rfdir   1 0 0   # Along the first reduced coordinate axis
-            #kptopt   2      # Automatic generation of k points, taking
-
-    # Split input into gs_inp and ph_inputs
-    all_inps = [gs_inp] 
-    all_inps.extend(ph_inputs.split_datasets())
-
-    return all_inps
+    return gs_inp
 
 
 def build_flow(options):
@@ -96,14 +69,12 @@ def build_flow(options):
     # Working directory (default is the name of the script with '.py' removed and "run_" replaced by "flow_")
     workdir = options.workdir
     if not options.workdir:
-        workdir = os.path.basename(__file__).replace(".py", "").replace("run_","flow_") 
+        workdir = os.path.basename(__file__).replace(".py", "").replace("run_","flow_")
 
-    all_inps = scf_ph_inputs()
-    scf_input, ph_inputs = all_inps[0], all_inps[1:]
-    #scf_input, ph_inputs = all_inps[0], all_inps[1:3]
+    scf_input = scf_ph_inputs()
 
-    return abilab.phonon_flow(workdir, scf_input, ph_inputs, manager=options.manager)
-
+    return abilab.PhononFlow.from_scf_input(workdir, scf_input, [4, 4, 4], with_becs=True,
+                                            manager=options.manager, allocate=False)
 
 @abilab.flow_main
 def main(options):
